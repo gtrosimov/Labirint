@@ -1,49 +1,41 @@
 using UnityEngine;
+using UnityEngine.UI;
 
-public class Door : MonoBehaviour
+public class DoorWithE : MonoBehaviour
 {
-    [Header("Настройки двери")]
-    public bool isLocked = true;      // закрыта ли дверь сначала
-    public GameObject doorPanel;      // 3D-модель двери (или часть, которая двигается)
-    public Vector3 openPosition = new Vector3(0, 2, 0); // смещение при открытии (например, вверх или в сторону)
-    public float openSpeed = 2f;
+    [Header("Настройки")]
+    public GameObject interactionText; // UI текст "Нажми E", перетащить из Canvas
+    public Color openColor = Color.green;
 
-    private Vector3 closedPos;
-    private bool isOpen = false;
+    private Collider blockCollider;    // коллайдер, блокирующий проход
     private bool isPlayerNear = false;
-
-    [Header("UI подсказка")]
-    public GameObject promptUI;       // например, текст "Нажми E, чтобы открыть"
+    private bool isOpen = false;
 
     void Start()
     {
-        if (doorPanel == null) doorPanel = gameObject;
-        closedPos = doorPanel.transform.localPosition;
-        if (promptUI != null) promptUI.SetActive(false);
+        // Находим коллайдер, который блокирует проход (не триггер)
+        blockCollider = GetComponent<Collider>();
+        if (interactionText != null) interactionText.SetActive(false);
     }
 
     void Update()
     {
-        if (isPlayerNear && Input.GetKeyDown(KeyCode.E) && !isOpen)
+        if (!isOpen && isPlayerNear && Input.GetKeyDown(KeyCode.E))
         {
-            if (!isLocked)
-                OpenDoor();
-            else
-                Debug.Log("Дверь заперта");
-        }
-
-        // Плавное движение двери
-        if (isOpen)
-        {
-            doorPanel.transform.localPosition = Vector3.Lerp(doorPanel.transform.localPosition, closedPos + openPosition, Time.deltaTime * openSpeed);
+            OpenDoor();
         }
     }
 
     void OpenDoor()
     {
         isOpen = true;
-        GetComponent<Collider>().enabled = false; // отключаем коллайдер, чтобы игрок мог пройти
-        if (promptUI != null) promptUI.SetActive(false);
+        // Отключаем коллайдер, который мешал проходу
+        if (blockCollider != null) blockCollider.enabled = false;
+        // Меняем цвет материала (или можно отключить рендер)
+        Renderer rend = GetComponent<Renderer>();
+        if (rend != null) rend.material.color = openColor;
+        // Скрываем подсказку
+        if (interactionText != null) interactionText.SetActive(false);
     }
 
     void OnTriggerEnter(Collider other)
@@ -51,7 +43,7 @@ public class Door : MonoBehaviour
         if (other.CompareTag("Player") && !isOpen)
         {
             isPlayerNear = true;
-            if (!isLocked && promptUI != null) promptUI.SetActive(true);
+            if (interactionText != null) interactionText.SetActive(true);
         }
     }
 
@@ -60,15 +52,7 @@ public class Door : MonoBehaviour
         if (other.CompareTag("Player"))
         {
             isPlayerNear = false;
-            if (promptUI != null) promptUI.SetActive(false);
+            if (interactionText != null) interactionText.SetActive(false);
         }
-    }
-
-    // Метод для вызова из скрипта ключа (если дверь заперта)
-    public void Unlock()
-    {
-        isLocked = false;
-        Debug.Log("Дверь разблокирована!");
-        if (isPlayerNear && promptUI != null) promptUI.SetActive(true);
     }
 }
