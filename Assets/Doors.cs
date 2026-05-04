@@ -1,26 +1,42 @@
 using UnityEngine;
-using UnityEngine.UI;
 
-public class DoorWithE : MonoBehaviour
+public class SmartDoor : MonoBehaviour
 {
     [Header("Настройки")]
-    public GameObject interactionText; // UI текст "Нажми E", перетащить из Canvas
-    public Color openColor = Color.green;
+    public GameObject interactionText;
+    public float openDuration = 3f;      // через сколько секунд закроется
+    public float speed = 2f;             // скорость вращения
 
-    private Collider blockCollider;    // коллайдер, блокирующий проход
     private bool isPlayerNear = false;
     private bool isOpen = false;
+    private Quaternion closedRot;
+    private Quaternion openRot;
+    private float closeTimer = 0f;
 
     void Start()
     {
-        // Находим коллайдер, который блокирует проход (не триггер)
-        blockCollider = GetComponent<Collider>();
+        closedRot = transform.rotation;
         if (interactionText != null) interactionText.SetActive(false);
     }
 
     void Update()
     {
-        if (!isOpen && isPlayerNear && Input.GetKeyDown(KeyCode.E))
+        // Ожидание закрытия
+        if (isOpen)
+        {
+            closeTimer -= Time.deltaTime;
+            if (closeTimer <= 0f)
+            {
+                isOpen = false;
+            }
+        }
+
+        // Плавный поворот
+        Quaternion targetRot = isOpen ? openRot : closedRot;
+        transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, Time.deltaTime * speed);
+
+        // Нажатие E
+        if (isPlayerNear && !isOpen && Input.GetKeyDown(KeyCode.E))
         {
             OpenDoor();
         }
@@ -28,13 +44,14 @@ public class DoorWithE : MonoBehaviour
 
     void OpenDoor()
     {
+        // Определяем сторону открытия (от себя или на себя)
+        Vector3 playerDir = transform.InverseTransformPoint(Camera.main.transform.position);
+        float angle = playerDir.z > 0 ? -90f : 90f;
+        openRot = closedRot * Quaternion.Euler(0, angle, 0);
+
         isOpen = true;
-        // Отключаем коллайдер, который мешал проходу
-        if (blockCollider != null) blockCollider.enabled = false;
-        // Меняем цвет материала (или можно отключить рендер)
-        Renderer rend = GetComponent<Renderer>();
-        if (rend != null) rend.material.color = openColor;
-        // Скрываем подсказку
+        closeTimer = openDuration;
+
         if (interactionText != null) interactionText.SetActive(false);
     }
 
