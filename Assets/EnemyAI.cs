@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.AI;
 
-public class EnemyAI : MonoBehaviour
+public class EnemyAI_Smart : MonoBehaviour
 {
     [Header("Ссылки")]
     public Transform player;
@@ -14,6 +14,7 @@ public class EnemyAI : MonoBehaviour
     public float chaseRange = 12f;
     public float attackRange = 2.2f;
     public int fearDamage = 25;
+    public float viewAngle = 60f;        // угол обзора (градусы)
 
     private bool isDead = false;
     private bool isCatching = false;
@@ -35,6 +36,24 @@ public class EnemyAI : MonoBehaviour
         if (isDead || isCatching || player == null) return;
 
         float dist = Vector3.Distance(transform.position, player.position);
+        bool canSeePlayer = false;
+
+        // Проверка видимости игрока (луч не проходит сквозь стены)
+        if (dist <= chaseRange)
+        {
+            Vector3 directionToPlayer = (player.position - transform.position).normalized;
+            float angleToPlayer = Vector3.Angle(transform.forward, directionToPlayer);
+            
+            if (angleToPlayer < viewAngle / 2f)
+            {
+                RaycastHit hit;
+                if (Physics.Raycast(transform.position + Vector3.up * 0.5f, directionToPlayer, out hit, chaseRange))
+                {
+                    if (hit.transform.CompareTag("Player"))
+                        canSeePlayer = true;
+                }
+            }
+        }
 
         if (dist <= attackRange)
         {
@@ -42,7 +61,7 @@ public class EnemyAI : MonoBehaviour
             return;
         }
 
-        if (dist <= chaseRange)
+        if (canSeePlayer)
         {
             // Поворот к игроку
             Vector3 direction = (player.position - transform.position).normalized;
@@ -108,9 +127,30 @@ public class EnemyAI : MonoBehaviour
 
         if (anim != null) anim.SetTrigger("Attack");
 
-        // Вызываем кат-сцену у игрока
         PlayerController pc = player.GetComponent<PlayerController>();
         if (pc != null) pc.GetCaught(transform.position);
+    }
+
+    // Метод для открытия дверей (вызывается из скрипта двери)
+    public void OpenDoor(GameObject door)
+    {
+        // Останавливаем навигацию на момент открытия двери
+        agent.isStopped = true;
+        
+        // Открываем дверь (вызываем метод у двери)
+        SmartDoor doorScript = door.GetComponent<SmartDoor>();
+        if (doorScript != null)
+        {
+            doorScript.OpenForEnemy();
+        }
+        
+        // Небольшая задержка перед продолжением движения
+        Invoke(nameof(ResumeNavigation), 0.5f);
+    }
+
+    void ResumeNavigation()
+    {
+        agent.isStopped = false;
     }
 
     public void Die()
