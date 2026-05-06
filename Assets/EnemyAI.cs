@@ -16,16 +16,19 @@ public class EnemyAI : MonoBehaviour
     public LayerMask obstacleMask;
 
     [Header("Патрулирование")]
-    public float walkPointRange = 10f;
+    public float walkPointRange = 18f;
+    public float minDistanceFromCurrent = 6f;
 
     [Header("Память")]
-    public float memoryDuration = 7f;
-    public float investigateRadius = 4f;
+    public float memoryDuration = 8f;
+    public float investigateRadius = 5f;
+
+    [Header("Скорости")]
+    public float chaseSpeed = 3.8f;
+    public float patrolSpeed = 1.7f;
 
     [Header("Дополнительно")]
     public float rotationSpeed = 7f;
-    public float chaseSpeed = 3.5f;
-    public float patrolSpeed = 1.8f;
 
     // Внутренние переменные
     private Vector3 walkPoint;
@@ -43,14 +46,15 @@ public class EnemyAI : MonoBehaviour
         if (anim == null) anim = GetComponent<Animator>();
 
         if (obstacleMask.value == 0)
-            obstacleMask = LayerMask.GetMask("Default", "Wall", "Obstacle");
+            obstacleMask = LayerMask.GetMask("Default", "Wall", "Obstacle", "Door");
 
-        agent.autoRepath = true;
+        if (agent != null)
+            agent.autoRepath = true;
     }
 
     private void Update()
     {
-        if (isCatching || player == null) return;
+        if (isCatching || player == null || agent == null) return;
 
         bool canSeePlayer = CanSeePlayer();
 
@@ -92,14 +96,52 @@ public class EnemyAI : MonoBehaviour
         return !Physics.Linecast(eyePos, playerEye, obstacleMask);
     }
 
+    private void Patroling()
+    {
+        agent.speed = patrolSpeed;
+        SetAnimation("isRunning", false);
+        SetAnimation("isWalking", true);
+
+        if (!walkPointSet || Vector3.Distance(transform.position, walkPoint) < 2.5f)
+            SearchNewWalkPoint();
+
+        if (walkPointSet)
+            agent.SetDestination(walkPoint);
+    }
+
+    private void SearchNewWalkPoint()
+    {
+        walkPointSet = false;
+
+        for (int i = 0; i < 60; i++)
+        {
+            Vector3 rand = Random.insideUnitSphere * walkPointRange;
+            rand.y = 0;
+            Vector3 target = transform.position + rand;
+
+            NavMeshHit hit;
+            if (NavMesh.SamplePosition(target, out hit, walkPointRange * 1.3f, NavMesh.AllAreas))
+            {
+                if (Vector3.Distance(transform.position, hit.position) < minDistanceFromCurrent)
+                    continue;
+
+                // Проверка, есть ли реальный путь (через двери и т.д.)
+                if (agent.CalculatePath(hit.position, new NavMeshPath()))
+                {
+                    walkPoint = hit.position;
+                    walkPointSet = true;
+                    return;
+                }
+            }
+        }
+    }
+
     private void ChasePlayer()
     {
         agent.speed = chaseSpeed;
         agent.SetDestination(player.position);
-
         SetAnimation("isRunning", true);
         SetAnimation("isWalking", false);
-
         RotateTowards(player.position);
     }
 
@@ -117,49 +159,20 @@ public class EnemyAI : MonoBehaviour
 
         if (agent.remainingDistance < 2f && !agent.pathPending)
         {
-            if (Random.value < 0.06f)
+            if (Random.value < 0.05f)
             {
                 Vector3 offset = Random.insideUnitSphere * investigateRadius;
                 offset.y = 0;
                 NavMeshHit hit;
-                if (NavMesh.SamplePosition(lastKnownPosition + offset, out hit, investigateRadius, NavMesh.AllAreas))
-                    agent.SetDestination(hit.position);
+                if (NavMesh.SamplePosition(lastKnownPosition + offset, out hit, investigateRadius * 1.5f, NavMesh.AllAreas))
+                {
+                    if (agent.CalculatePath(hit.position, new NavMeshPath()))
+                        agent.SetDestination(hit.position);
+                }
             }
         }
 
         RotateTowards(lastKnownPosition);
-    }
-
-    private void Patroling()
-    {
-        agent.speed = patrolSpeed;
-        SetAnimation("isRunning", false);
-        SetAnimation("isWalking", true);
-
-        if (!walkPointSet || Vector3.Distance(transform.position, walkPoint) < 2f)
-            SearchNewWalkPoint();
-
-        if (walkPointSet)
-            agent.SetDestination(walkPoint);
-    }
-
-    private void SearchNewWalkPoint()
-    {
-        walkPointSet = false;
-        for (int i = 0; i < 35; i++)
-        {
-            Vector3 rand = Random.insideUnitSphere * walkPointRange;
-            rand.y = 0;
-            Vector3 target = transform.position + rand;
-
-            NavMeshHit hit;
-            if (NavMesh.SamplePosition(target, out hit, walkPointRange, NavMesh.AllAreas))
-            {
-                walkPoint = hit.position;
-                walkPointSet = true;
-                return;
-            }
-        }
     }
 
     private void RotateTowards(Vector3 target)
@@ -197,20 +210,26 @@ public class EnemyAI : MonoBehaviour
         isCatching = false;
     }
 
-    // Открытие дверей
+    // ====================== ОТКРЫТИЕ ДВЕРЕЙ ======================
     public void OpenDoor(GameObject door)
     {
         agent.isStopped = true;
         SmartDoor doorScript = door.GetComponent<SmartDoor>();
-        if (doorScript != null) doorScript.OpenForEnemy();
+        if (doorScript != null)
+            doorScript.OpenForEnemy();
+
         Invoke(nameof(ResumeNavigation), 1.2f);
     }
 
-    private void ResumeNavigation() => agent.isStopped = false;
-
-    private void SetAnimation(string param, bool value)
+    private void ResumeNavigation()
     {
-        if (anim != null) anim.SetBool(param, value);
+        agent.isStopped = false;
+    }
+
+    private void SetAnimation(string paramName, bool value)
+    {
+        if (anim != null)
+            anim.SetBool(paramName, value);
     }
 
     private void OnDrawGizmosSelected()
