@@ -1,163 +1,223 @@
 using UnityEngine;
 using UnityEngine.AI;
 
-public class EnemyAI_Smart : MonoBehaviour
+public class EnemyAI : MonoBehaviour
 {
     [Header("Ссылки")]
-    public Transform player;
     public NavMeshAgent agent;
+    public Transform player;
     public Animator anim;
 
-    [Header("Настройки")]
-    public float patrolRadius = 8f;
-    public float waitTime = 2f;
-    public float chaseRange = 12f;
+    [Header("Зрение")]
+    public float sightRange = 15f;
     public float attackRange = 2.2f;
-    public int fearDamage = 25;
-    public float viewAngle = 60f;        // угол обзора (градусы)
+    public float fieldOfView = 100f;
+    public float eyeHeight = 1.4f;
+    public LayerMask obstacleMask;
 
-    private bool isDead = false;
-    private bool isCatching = false;
-    private Vector3 patrolPoint;
-    private float timer = 0f;
+    [Header("Патрулирование")]
+    public float walkPointRange = 10f;
 
-    void Start()
+    [Header("Память")]
+    public float memoryDuration = 7f;
+    public float investigateRadius = 4f;
+
+    [Header("Дополнительно")]
+    public float rotationSpeed = 7f;
+    public float chaseSpeed = 3.5f;
+    public float patrolSpeed = 1.8f;
+
+    // Внутренние переменные
+    private Vector3 walkPoint;
+    private bool walkPointSet;
+    private Vector3 lastKnownPosition;
+    private float memoryTimer;
+    private bool isInvestigating;
+    private bool isCatching;
+    private bool alreadyAttacked;
+
+    private void Awake()
     {
+        if (player == null) player = GameObject.FindGameObjectWithTag("Player")?.transform;
         if (agent == null) agent = GetComponent<NavMeshAgent>();
         if (anim == null) anim = GetComponent<Animator>();
-        if (player == null) 
-            player = GameObject.FindGameObjectWithTag("Player")?.transform;
 
-        GetNewPatrolPoint();
+        if (obstacleMask.value == 0)
+            obstacleMask = LayerMask.GetMask("Default", "Wall", "Obstacle");
+
+        agent.autoRepath = true;
     }
 
-    void Update()
+    private void Update()
     {
-        if (isDead || isCatching || player == null) return;
+        if (isCatching || player == null) return;
 
-        float dist = Vector3.Distance(transform.position, player.position);
-        bool canSeePlayer = false;
-
-        // Проверка видимости игрока (луч не проходит сквозь стены)
-        if (dist <= chaseRange)
-        {
-            Vector3 directionToPlayer = (player.position - transform.position).normalized;
-            float angleToPlayer = Vector3.Angle(transform.forward, directionToPlayer);
-            
-            if (angleToPlayer < viewAngle / 2f)
-            {
-                RaycastHit hit;
-                if (Physics.Raycast(transform.position + Vector3.up * 0.5f, directionToPlayer, out hit, chaseRange))
-                {
-                    if (hit.transform.CompareTag("Player"))
-                        canSeePlayer = true;
-                }
-            }
-        }
-
-        if (dist <= attackRange)
-        {
-            CatchPlayer();
-            return;
-        }
+        bool canSeePlayer = CanSeePlayer();
 
         if (canSeePlayer)
         {
-            // Поворот к игроку
-            Vector3 direction = (player.position - transform.position).normalized;
-            direction.y = 0;
-            if (direction != Vector3.zero)
-            {
-                Quaternion targetRot = Quaternion.LookRotation(direction);
-                transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRot, 360f * Time.deltaTime);
-            }
-            ChasePlayer();
+            lastKnownPosition = player.position;
+            memoryTimer = memoryDuration;
+            isInvestigating = false;
+
+            float dist = Vector3.Distance(transform.position, player.position);
+
+            if (dist <= attackRange)
+                AttackPlayer();
+            else
+                ChasePlayer();
+        }
+        else if (memoryTimer > 0)
+        {
+            memoryTimer -= Time.deltaTime;
+            InvestigateLastPosition();
         }
         else
         {
-            Patrol();
+            Patroling();
         }
     }
 
-    void ChasePlayer()
+    private bool CanSeePlayer()
     {
-        agent.SetDestination(player.position);
-        anim.SetBool("isRunning", true);
+        Vector3 dir = (player.position - transform.position).normalized;
+        float angle = Vector3.Angle(transform.forward, dir);
+
+        if (angle > fieldOfView * 0.5f) return false;
+        if (Vector3.Distance(transform.position, player.position) > sightRange) return false;
+
+        Vector3 eyePos = transform.position + Vector3.up * eyeHeight;
+        Vector3 playerEye = player.position + Vector3.up * 1.2f;
+
+        return !Physics.Linecast(eyePos, playerEye, obstacleMask);
     }
 
-    void Patrol()
+    private void ChasePlayer()
     {
-        anim.SetBool("isRunning", false);
+        agent.speed = chaseSpeed;
+        agent.SetDestination(player.position);
 
-        if (!agent.pathPending && agent.remainingDistance < 0.5f)
+        SetAnimation("isRunning", true);
+        SetAnimation("isWalking", false);
+
+        RotateTowards(player.position);
+    }
+
+    private void InvestigateLastPosition()
+    {
+        if (!isInvestigating)
         {
-            timer += Time.deltaTime;
-            if (timer >= waitTime)
+            isInvestigating = true;
+            agent.SetDestination(lastKnownPosition);
+        }
+
+        agent.speed = chaseSpeed * 0.85f;
+        SetAnimation("isRunning", true);
+        SetAnimation("isWalking", false);
+
+        if (agent.remainingDistance < 2f && !agent.pathPending)
+        {
+            if (Random.value < 0.06f)
             {
-                timer = 0f;
-                GetNewPatrolPoint();
+                Vector3 offset = Random.insideUnitSphere * investigateRadius;
+                offset.y = 0;
+                NavMeshHit hit;
+                if (NavMesh.SamplePosition(lastKnownPosition + offset, out hit, investigateRadius, NavMesh.AllAreas))
+                    agent.SetDestination(hit.position);
+            }
+        }
+
+        RotateTowards(lastKnownPosition);
+    }
+
+    private void Patroling()
+    {
+        agent.speed = patrolSpeed;
+        SetAnimation("isRunning", false);
+        SetAnimation("isWalking", true);
+
+        if (!walkPointSet || Vector3.Distance(transform.position, walkPoint) < 2f)
+            SearchNewWalkPoint();
+
+        if (walkPointSet)
+            agent.SetDestination(walkPoint);
+    }
+
+    private void SearchNewWalkPoint()
+    {
+        walkPointSet = false;
+        for (int i = 0; i < 35; i++)
+        {
+            Vector3 rand = Random.insideUnitSphere * walkPointRange;
+            rand.y = 0;
+            Vector3 target = transform.position + rand;
+
+            NavMeshHit hit;
+            if (NavMesh.SamplePosition(target, out hit, walkPointRange, NavMesh.AllAreas))
+            {
+                walkPoint = hit.position;
+                walkPointSet = true;
+                return;
             }
         }
     }
 
-    void GetNewPatrolPoint()
+    private void RotateTowards(Vector3 target)
     {
-        Vector3 randDir = Random.insideUnitSphere * patrolRadius;
-        randDir.y = 0;
-        randDir += transform.position;
-
-        NavMeshHit hit;
-        if (NavMesh.SamplePosition(randDir, out hit, patrolRadius * 1.5f, NavMesh.AllAreas))
+        Vector3 dir = (target - transform.position).normalized;
+        dir.y = 0;
+        if (dir.sqrMagnitude > 0.01f)
         {
-            agent.SetDestination(hit.position);
+            Quaternion targetRot = Quaternion.LookRotation(dir);
+            transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, rotationSpeed * Time.deltaTime);
         }
     }
 
-    void CatchPlayer()
+    private void AttackPlayer()
     {
-        if (isCatching) return;
-        isCatching = true;
+        agent.SetDestination(transform.position);
+        transform.LookAt(new Vector3(player.position.x, transform.position.y, player.position.z));
 
-        agent.isStopped = true;
-        agent.velocity = Vector3.zero;
-        Vector3 dirToPlayer = (player.position - transform.position).normalized;
-        dirToPlayer.y = 0;
-        if (dirToPlayer != Vector3.zero)
-            transform.rotation = Quaternion.LookRotation(dirToPlayer);
+        if (!alreadyAttacked)
+        {
+            isCatching = true;
+            if (anim != null) anim.SetTrigger("Attack");
 
-        if (anim != null) anim.SetTrigger("Attack");
+            PlayerController pc = player.GetComponent<PlayerController>();
+            if (pc != null) pc.GetCaught(transform.position);
 
-        PlayerController pc = player.GetComponent<PlayerController>();
-        if (pc != null) pc.GetCaught(transform.position);
+            alreadyAttacked = true;
+            Invoke(nameof(ResetAttack), 2f);
+        }
     }
 
-    // Метод для открытия дверей (вызывается из скрипта двери)
+    private void ResetAttack()
+    {
+        alreadyAttacked = false;
+        isCatching = false;
+    }
+
+    // Открытие дверей
     public void OpenDoor(GameObject door)
     {
-        // Останавливаем навигацию на момент открытия двери
         agent.isStopped = true;
-        
-        // Открываем дверь (вызываем метод у двери)
         SmartDoor doorScript = door.GetComponent<SmartDoor>();
-        if (doorScript != null)
-        {
-            doorScript.OpenForEnemy();
-        }
-        
-        // Небольшая задержка перед продолжением движения
-        Invoke(nameof(ResumeNavigation), 0.5f);
+        if (doorScript != null) doorScript.OpenForEnemy();
+        Invoke(nameof(ResumeNavigation), 1.2f);
     }
 
-    void ResumeNavigation()
+    private void ResumeNavigation() => agent.isStopped = false;
+
+    private void SetAnimation(string param, bool value)
     {
-        agent.isStopped = false;
+        if (anim != null) anim.SetBool(param, value);
     }
 
-    public void Die()
+    private void OnDrawGizmosSelected()
     {
-        isDead = true;
-        if (anim != null) anim.SetBool("isDead", true);
-        if (agent) agent.isStopped = true;
-        Destroy(gameObject, 3.5f);
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(transform.position, sightRange);
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireSphere(transform.position, attackRange);
     }
 }

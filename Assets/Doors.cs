@@ -2,7 +2,6 @@ using UnityEngine;
 
 public class SmartDoor : MonoBehaviour
 {
-    [Header("Настройки")]
     public GameObject interactionText;
     public float openDuration = 3f;
     public float speed = 2f;
@@ -12,7 +11,7 @@ public class SmartDoor : MonoBehaviour
     private Quaternion closedRot;
     private Quaternion openRot;
     private float closeTimer = 0f;
-    private Transform player; // ссылка на игрока
+    private Transform player;
 
     void Start()
     {
@@ -25,49 +24,37 @@ public class SmartDoor : MonoBehaviour
         if (isOpen)
         {
             closeTimer -= Time.deltaTime;
-            if (closeTimer <= 0f)
-            {
-                isOpen = false;
-            }
+            if (closeTimer <= 0f) isOpen = false;
         }
 
-        Quaternion targetRot = isOpen ? openRot : closedRot;
-        transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, Time.deltaTime * speed);
+        Quaternion target = isOpen ? openRot : closedRot;
+        transform.rotation = Quaternion.Slerp(transform.rotation, target, Time.deltaTime * speed);
 
         if (isPlayerNear && !isOpen && Input.GetKeyDown(KeyCode.E))
-        {
-            OpenDoorForPlayer();
-        }
+            OpenForPlayer();
     }
 
-    void OpenDoorForPlayer()
+    void OpenForPlayer()
     {
-        Camera playerCamera = player.GetComponentInChildren<Camera>();
-        if (playerCamera == null) return;
-
-        Vector3 playerDir = transform.InverseTransformPoint(playerCamera.transform.position);
-        float angle = playerDir.z > 0 ? -90f : 90f;
+        if (player == null) return;
+        Vector3 dir = transform.InverseTransformPoint(player.position + Vector3.up * 0.5f);
+        float angle = dir.z > 0 ? -90f : 90f;
         openRot = closedRot * Quaternion.Euler(0, angle, 0);
-
         isOpen = true;
         closeTimer = openDuration;
         if (interactionText != null) interactionText.SetActive(false);
     }
 
+    // --- ЭТОТ МЕТОД ВЫЗЫВАЕТСЯ ИЗ СКРИПТА ВРАГА ---
     public void OpenForEnemy()
     {
-        if (isOpen) return;
-
-        Vector3 enemyDir = transform.InverseTransformPoint(transform.position);
-        float angle = enemyDir.z > 0 ? -90f : 90f;
+        // Враг всегда открывает дверь от себя
+        float angle = -90f;
         openRot = closedRot * Quaternion.Euler(0, angle, 0);
-
         isOpen = true;
         closeTimer = openDuration;
-        if (interactionText != null) interactionText.SetActive(false);
     }
 
-    // Объединённый OnTriggerEnter для игрока и врага
     void OnTriggerEnter(Collider other)
     {
         if (other.CompareTag("Player") && !isOpen)
@@ -76,9 +63,10 @@ public class SmartDoor : MonoBehaviour
             isPlayerNear = true;
             if (interactionText != null) interactionText.SetActive(true);
         }
+        // --- ВОТ ТУТ ВРАГ ПОДХОДИТ К ДВЕРИ ---
         else if (other.CompareTag("Enemy") && !isOpen)
         {
-            EnemyAI_Smart enemy = other.GetComponent<EnemyAI_Smart>();
+            EnemyAI enemy = other.GetComponent<EnemyAI>();
             if (enemy != null) enemy.OpenDoor(gameObject);
         }
     }
