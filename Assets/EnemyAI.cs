@@ -16,7 +16,7 @@ public class EnemyAI : MonoBehaviour
     public LayerMask obstacleMask;
 
     [Header("Патрулирование")]
-    public float walkPointRange = 18f;
+    public float walkPointRange = 20f;
     public float minDistanceFromCurrent = 6f;
 
     [Header("Память")]
@@ -27,8 +27,8 @@ public class EnemyAI : MonoBehaviour
     public float chaseSpeed = 3.8f;
     public float patrolSpeed = 1.7f;
 
-    [Header("Дополнительно")]
-    public float rotationSpeed = 7f;
+    [Header("Поворот")]
+    public float rotationSpeed = 8f;
 
     // Внутренние переменные
     private Vector3 walkPoint;
@@ -48,8 +48,7 @@ public class EnemyAI : MonoBehaviour
         if (obstacleMask.value == 0)
             obstacleMask = LayerMask.GetMask("Default", "Wall", "Obstacle", "Door");
 
-        if (agent != null)
-            agent.autoRepath = true;
+        if (agent != null) agent.autoRepath = true;
     }
 
     private void Update()
@@ -80,6 +79,8 @@ public class EnemyAI : MonoBehaviour
         {
             Patroling();
         }
+
+        UpdateAnimator();
     }
 
     private bool CanSeePlayer()
@@ -99,9 +100,6 @@ public class EnemyAI : MonoBehaviour
     private void Patroling()
     {
         agent.speed = patrolSpeed;
-        SetAnimation("isRunning", false);
-        SetAnimation("isWalking", true);
-
         if (!walkPointSet || Vector3.Distance(transform.position, walkPoint) < 2.5f)
             SearchNewWalkPoint();
 
@@ -112,7 +110,6 @@ public class EnemyAI : MonoBehaviour
     private void SearchNewWalkPoint()
     {
         walkPointSet = false;
-
         for (int i = 0; i < 60; i++)
         {
             Vector3 rand = Random.insideUnitSphere * walkPointRange;
@@ -125,7 +122,6 @@ public class EnemyAI : MonoBehaviour
                 if (Vector3.Distance(transform.position, hit.position) < minDistanceFromCurrent)
                     continue;
 
-                // Проверка, есть ли реальный путь (через двери и т.д.)
                 if (agent.CalculatePath(hit.position, new NavMeshPath()))
                 {
                     walkPoint = hit.position;
@@ -140,8 +136,6 @@ public class EnemyAI : MonoBehaviour
     {
         agent.speed = chaseSpeed;
         agent.SetDestination(player.position);
-        SetAnimation("isRunning", true);
-        SetAnimation("isWalking", false);
         RotateTowards(player.position);
     }
 
@@ -154,24 +148,6 @@ public class EnemyAI : MonoBehaviour
         }
 
         agent.speed = chaseSpeed * 0.85f;
-        SetAnimation("isRunning", true);
-        SetAnimation("isWalking", false);
-
-        if (agent.remainingDistance < 2f && !agent.pathPending)
-        {
-            if (Random.value < 0.05f)
-            {
-                Vector3 offset = Random.insideUnitSphere * investigateRadius;
-                offset.y = 0;
-                NavMeshHit hit;
-                if (NavMesh.SamplePosition(lastKnownPosition + offset, out hit, investigateRadius * 1.5f, NavMesh.AllAreas))
-                {
-                    if (agent.CalculatePath(hit.position, new NavMeshPath()))
-                        agent.SetDestination(hit.position);
-                }
-            }
-        }
-
         RotateTowards(lastKnownPosition);
     }
 
@@ -184,6 +160,29 @@ public class EnemyAI : MonoBehaviour
             Quaternion targetRot = Quaternion.LookRotation(dir);
             transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, rotationSpeed * Time.deltaTime);
         }
+    }
+
+    private void UpdateAnimator()
+    {
+        if (anim == null) return;
+
+        float speed = agent.velocity.magnitude;
+        bool isRunning = speed > 2.5f;
+
+        // Бег и ходьба
+        anim.SetBool("isRunning", isRunning);
+        anim.SetBool("isWalking", !isRunning && speed > 0.1f);
+
+        // === АНИМАЦИЯ ПОВОРОТА ===
+        float turnAmount = 0f;
+        if (speed < 2f) // поворачиваемся только когда медленно или стоим
+        {
+            Vector3 localVel = transform.InverseTransformDirection(agent.desiredVelocity);
+            turnAmount = localVel.x;
+        }
+
+        anim.SetBool("TurnRight", turnAmount > 0.25f);
+        anim.SetBool("TurnLeft",  turnAmount < -0.25f);
     }
 
     private void AttackPlayer()
@@ -210,27 +209,15 @@ public class EnemyAI : MonoBehaviour
         isCatching = false;
     }
 
-    // ====================== ОТКРЫТИЕ ДВЕРЕЙ ======================
     public void OpenDoor(GameObject door)
     {
         agent.isStopped = true;
         SmartDoor doorScript = door.GetComponent<SmartDoor>();
-        if (doorScript != null)
-            doorScript.OpenForEnemy();
-
+        if (doorScript != null) doorScript.OpenForEnemy();
         Invoke(nameof(ResumeNavigation), 1.2f);
     }
 
-    private void ResumeNavigation()
-    {
-        agent.isStopped = false;
-    }
-
-    private void SetAnimation(string paramName, bool value)
-    {
-        if (anim != null)
-            anim.SetBool(paramName, value);
-    }
+    private void ResumeNavigation() => agent.isStopped = false;
 
     private void OnDrawGizmosSelected()
     {
