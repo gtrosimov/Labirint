@@ -13,17 +13,13 @@ public class MainMenu : MonoBehaviour
     public Slider loadingSlider;
     public Text loadingText;
 
-    [Header("Меню настроек")]
+    [Header("Панели")]
     public GameObject settingsPanel;
 
     private void Start()
     {
-        // Выключаем экран загрузки и панель настроек при старте
-        if (loadingScreen != null)
-            loadingScreen.SetActive(false);
-
-        if (settingsPanel != null)
-            settingsPanel.SetActive(false);
+        if (loadingScreen != null) loadingScreen.SetActive(false);
+        if (settingsPanel != null) settingsPanel.SetActive(false);
     }
 
     public void PlayGame()
@@ -33,9 +29,7 @@ public class MainMenu : MonoBehaviour
 
     private IEnumerator LoadSceneAsync()
     {
-        if (loadingScreen != null)
-            loadingScreen.SetActive(true);
-
+        if (loadingScreen != null) loadingScreen.SetActive(true);
         if (loadingSlider != null) loadingSlider.value = 0f;
 
         AsyncOperation operation = SceneManager.LoadSceneAsync(sceneToLoad);
@@ -49,20 +43,14 @@ public class MainMenu : MonoBehaviour
             float realProgress = operation.progress / 0.9f;
 
             if (loadingSlider != null)
-            {
                 loadingSlider.value = Mathf.Lerp(loadingSlider.value, realProgress, Time.deltaTime * 5f);
-            }
 
             if (loadingText != null)
-            {
-                int percent = Mathf.RoundToInt(loadingSlider.value * 100);
-                loadingText.text = $"ЗАГРУЗКА... {percent}%";
-            }
+                loadingText.text = $"ЗАГРУЗКА... {Mathf.RoundToInt(loadingSlider.value * 100)}%";
 
             if (operation.progress >= 0.9f && timer >= 3f)
             {
-                if (loadingText != null)
-                    loadingText.text = "ГОТОВО...";
+                if (loadingText != null) loadingText.text = "ГОТОВО...";
 
                 while (loadingSlider != null && loadingSlider.value < 0.99f)
                 {
@@ -73,7 +61,6 @@ public class MainMenu : MonoBehaviour
                 yield return new WaitForSeconds(0.7f);
                 operation.allowSceneActivation = true;
             }
-
             yield return null;
         }
     }
@@ -95,8 +82,8 @@ public class MainMenu : MonoBehaviour
         Debug.Log("Выход из игры");
         Application.Quit();
 
-        #if UNITY_EDITOR
+#if UNITY_EDITOR
         UnityEditor.EditorApplication.isPlaying = false;
-        #endif
+#endif
     }
 }

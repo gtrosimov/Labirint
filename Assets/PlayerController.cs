@@ -10,6 +10,9 @@ public class PlayerController : MonoBehaviour
     public float mouseSensitivity = 2f;
     public float maxLookAngle = 80f;
 
+    [Header("Настройки (загружаются из PlayerPrefs)")]
+    public float savedMouseSensitivity = 2f;
+
     [Header("Кат-сцена при поимке")]
     public GameObject darkPanel;
     public Light redLight;
@@ -24,10 +27,16 @@ public class PlayerController : MonoBehaviour
     private Vector3 originalCameraPos;
     private Quaternion originalCameraRot;
 
+
+
     void Start()
     {
         controller = GetComponent<CharacterController>();
         playerCamera = GetComponentInChildren<Camera>();
+
+        // Загружаем сохранённую чувствительность мыши
+        savedMouseSensitivity = PlayerPrefs.GetFloat("MouseSensitivity", 2f);
+        mouseSensitivity = savedMouseSensitivity;
 
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
@@ -35,7 +44,6 @@ public class PlayerController : MonoBehaviour
         if (darkPanel != null) darkPanel.SetActive(false);
         if (redLight != null) redLight.enabled = false;
     }
-
     void Update()
     {
         if (isCaught) return;
@@ -136,4 +144,7 @@ public class PlayerController : MonoBehaviour
     {
         if (darkPanel != null) darkPanel.SetActive(false);
     }
+
+
+    
 }
