@@ -5,7 +5,7 @@ using System.Collections;
 
 public class MainMenu : MonoBehaviour
 {
-    [Header("Сцена для загрузки")]
+    [Header("Загрузка уровня")]
     public string sceneToLoad = "Level1";
 
     [Header("Экран загрузки")]
@@ -13,10 +13,17 @@ public class MainMenu : MonoBehaviour
     public Slider loadingSlider;
     public Text loadingText;
 
+    [Header("Меню настроек")]
+    public GameObject settingsPanel;
+
     private void Start()
     {
+        // Выключаем экран загрузки и панель настроек при старте
         if (loadingScreen != null)
             loadingScreen.SetActive(false);
+
+        if (settingsPanel != null)
+            settingsPanel.SetActive(false);
     }
 
     public void PlayGame()
@@ -39,15 +46,11 @@ public class MainMenu : MonoBehaviour
         while (!operation.isDone)
         {
             timer += Time.deltaTime;
-
-            // Реальный прогресс загрузки
             float realProgress = operation.progress / 0.9f;
 
-            // Плавное заполнение с задержкой (чтобы дольше выглядело)
             if (loadingSlider != null)
             {
-                float smoothProgress = Mathf.Lerp(loadingSlider.value, realProgress, Time.deltaTime * 3f);
-                loadingSlider.value = smoothProgress;
+                loadingSlider.value = Mathf.Lerp(loadingSlider.value, realProgress, Time.deltaTime * 5f);
             }
 
             if (loadingText != null)
@@ -56,20 +59,18 @@ public class MainMenu : MonoBehaviour
                 loadingText.text = $"ЗАГРУЗКА... {percent}%";
             }
 
-            // Ждём минимум 3.5 секунды + завершение загрузки
-            if (operation.progress >= 0.9f && timer >= 3.5f)
+            if (operation.progress >= 0.9f && timer >= 3f)
             {
                 if (loadingText != null)
                     loadingText.text = "ГОТОВО...";
 
-                // Плавно добиваем до конца
                 while (loadingSlider != null && loadingSlider.value < 0.99f)
                 {
-                    loadingSlider.value = Mathf.Lerp(loadingSlider.value, 1f, Time.deltaTime * 3f);
+                    loadingSlider.value = Mathf.Lerp(loadingSlider.value, 1f, Time.deltaTime * 4f);
                     yield return null;
                 }
 
-                yield return new WaitForSeconds(0.8f);
+                yield return new WaitForSeconds(0.7f);
                 operation.allowSceneActivation = true;
             }
 
@@ -77,9 +78,23 @@ public class MainMenu : MonoBehaviour
         }
     }
 
+    public void OpenSettings()
+    {
+        if (settingsPanel != null)
+            settingsPanel.SetActive(true);
+    }
+
+    public void CloseSettings()
+    {
+        if (settingsPanel != null)
+            settingsPanel.SetActive(false);
+    }
+
     public void QuitGame()
     {
+        Debug.Log("Выход из игры");
         Application.Quit();
+
         #if UNITY_EDITOR
         UnityEditor.EditorApplication.isPlaying = false;
         #endif
