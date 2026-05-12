@@ -4,107 +4,93 @@ using UnityEngine.Audio;
 
 public class SettingsManager : MonoBehaviour
 {
-    [Header("Компоненты")]
-    public Slider volumeSlider;
-    public Slider brightnessSlider;
-    public Slider mouseSensitivitySlider;
-    public Toggle crazyModeToggle;
-    public Toggle fullscreenToggle;
-
     [Header("Audio")]
     public AudioMixer audioMixer;
+    public Slider volumeSlider;
+    [Header("Диапазон громкости")]
+    public float volumeMin = 0.0001f;
+    public float volumeMax = 1f;
 
-    // Значения по умолчанию
-    private float defaultVolume = 0.7f;      // 70%
-    private float defaultBrightness = 1f;    // нормальная яркость
-    private float defaultMouseSensitivity = 2f;
+    [Header("Графика")]
+    public Slider brightnessSlider;
+    [Header("Диапазон яркости")]
+    public float brightnessMin = 0f;
+    public float brightnessMax = 2f;
+
+    [Header("Управление")]
+    public Slider mouseSlider;
+    [Header("Диапазон мыши")]
+    public float mouseMin = 0.5f;
+    public float mouseMax = 5f;
+
+    [Header("Экран")]
+    public Toggle fullscreenToggle;
 
     private void Start()
     {
-        LoadSettings();
+        // Настройка ползунков
+        if (volumeSlider != null)
+        {
+            volumeSlider.minValue = volumeMin;
+            volumeSlider.maxValue = volumeMax;
+            volumeSlider.value = PlayerPrefs.GetFloat("MasterVolume", 0.5f);
+            volumeSlider.onValueChanged.AddListener(SetVolume);
+            SetVolume(volumeSlider.value);
+        }
+
+        if (brightnessSlider != null)
+        {
+            brightnessSlider.minValue = brightnessMin;
+            brightnessSlider.maxValue = brightnessMax;
+            brightnessSlider.value = PlayerPrefs.GetFloat("Brightness", 1f);
+            brightnessSlider.onValueChanged.AddListener(SetBrightness);
+            SetBrightness(brightnessSlider.value);
+        }
+
+        if (mouseSlider != null)
+        {
+            mouseSlider.minValue = mouseMin;
+            mouseSlider.maxValue = mouseMax;
+            mouseSlider.value = PlayerPrefs.GetFloat("MouseSensitivity", 2f);
+            mouseSlider.onValueChanged.AddListener(SetMouseSensitivity);
+        }
+
+        if (fullscreenToggle != null)
+        {
+            fullscreenToggle.isOn = PlayerPrefs.GetInt("Fullscreen", 1) == 1;
+            fullscreenToggle.onValueChanged.AddListener(SetFullscreen);
+            SetFullscreen(fullscreenToggle.isOn);
+        }
     }
 
     public void SetVolume(float value)
     {
+        PlayerPrefs.SetFloat("MasterVolume", value);
         if (audioMixer != null)
             audioMixer.SetFloat("MasterVolume", Mathf.Log10(value) * 20);
-        PlayerPrefs.SetFloat("MasterVolume", value);
         Debug.Log($"Громкость: {value}");
     }
 
     public void SetBrightness(float value)
     {
         PlayerPrefs.SetFloat("Brightness", value);
-        ApplyBrightness(value);
-        Debug.Log($"Яркость: {value}");
-    }
-
-    private void ApplyBrightness(float value)
-    {
-        RenderSettings.ambientLight = new Color(value, value, value);
+        Debug.Log($"Яркость сохранена: {value}");
     }
 
     public void SetMouseSensitivity(float value)
     {
-        if (value < 0.5f) value = 0.5f; // защита от нуля
         PlayerPrefs.SetFloat("MouseSensitivity", value);
-        Debug.Log($"Чувствительность мыши: {value}");
-        
-        // Обновляем у игрока, если он в сцене
-        GameObject player = GameObject.FindGameObjectWithTag("Player");
-        if (player != null)
-        {
-            PlayerController pc = player.GetComponent<PlayerController>();
-            if (pc != null)
-                pc.mouseSensitivity = value;
-        }
+        Debug.Log($"Чувствительность мыши сохранена: {value}");
     }
 
-    public void SetCrazyMode(bool isEnabled)
+    public void SetFullscreen(bool isFull)
     {
-        PlayerPrefs.SetInt("CrazyMode", isEnabled ? 1 : 0);
-        Debug.Log(isEnabled ? "Безумная сложность включена" : "Безумная сложность выключена");
-    }
-
-    public void SetFullscreen(bool isFullscreen)
-    {
-        Screen.fullScreen = isFullscreen;
-        PlayerPrefs.SetInt("Fullscreen", isFullscreen ? 1 : 0);
-        Debug.Log($"Полноэкранный режим: {isFullscreen}");
+        Screen.fullScreen = isFull;
+        PlayerPrefs.SetInt("Fullscreen", isFull ? 1 : 0);
     }
 
     public void CloseSettings()
     {
         gameObject.SetActive(false);
-    }
-
-    private void LoadSettings()
-    {
-        // Загружаем или ставим значения по умолчанию
-        float savedVolume = PlayerPrefs.GetFloat("MasterVolume", defaultVolume);
-        float savedBrightness = PlayerPrefs.GetFloat("Brightness", defaultBrightness);
-        float savedMouseSens = PlayerPrefs.GetFloat("MouseSensitivity", defaultMouseSensitivity);
-
-        // Применяем к слайдерам
-        if (volumeSlider != null)
-            volumeSlider.value = savedVolume;
-        
-        if (brightnessSlider != null)
-            brightnessSlider.value = savedBrightness;
-        
-        if (mouseSensitivitySlider != null)
-            mouseSensitivitySlider.value = savedMouseSens;
-
-        // Загружаем Toggle
-        if (crazyModeToggle != null)
-            crazyModeToggle.isOn = PlayerPrefs.GetInt("CrazyMode", 0) == 1;
-
-        if (fullscreenToggle != null)
-            fullscreenToggle.isOn = PlayerPrefs.GetInt("Fullscreen", 1) == 1;
-
-        // Применяем настройки сразу
-        SetVolume(savedVolume);
-        SetBrightness(savedBrightness);
-        SetMouseSensitivity(savedMouseSens);
     }
 }

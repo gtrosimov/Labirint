@@ -4926,12 +4926,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5c6d3b5193d5b0e46b38e9b802aa7db1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  volumeSlider: {fileID: 1650315625}
-  brightnessSlider: {fileID: 1968121211}
-  mouseSensitivitySlider: {fileID: 151173329}
-  crazyModeToggle: {fileID: 1727290922}
-  fullscreenToggle: {fileID: 1343574698}
   audioMixer: {fileID: 24100000, guid: cfb8bf3be0ea404498d2734a37ffc277, type: 2}
+  volumeSlider: {fileID: 1650315625}
+  volumeMin: 1
+  volumeMax: 100
+  brightnessSlider: {fileID: 1968121211}
+  brightnessMin: 0
+  brightnessMax: 100
+  mouseSlider: {fileID: 151173329}
+  mouseMin: 0
+  mouseMax: 10
+  fullscreenToggle: {fileID: 1343574698}
 --- !u!4 &2109161013
 Transform:
   m_ObjectHideFlags: 0
