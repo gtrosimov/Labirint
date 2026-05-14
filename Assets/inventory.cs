@@ -1,63 +1,38 @@
 using UnityEngine;
 using UnityEngine.UI;
-using System.Collections.Generic;
 
-public class InventoryManager : MonoBehaviour
+public class InventoryUI : MonoBehaviour
 {
-    public static InventoryManager Instance;
-    
-    public GameObject keyUIPrefab;  // префаб с Image + Text
-    public Transform keyPanel;      // панель в левом верхнем углу
-    
-    private List<KeyItem> keys = new List<KeyItem>();
-    
-    void Awake()
+    public static InventoryUI Instance;
+
+    [Header("Большое окно")]
+    public GameObject keyLargePanel;
+
+    [Header("Маленькая иконка")]
+    public GameObject keySmallPanel;
+
+    private void Awake()
     {
-        if (Instance == null) Instance = this;
-        else Destroy(gameObject);
+        Instance = this;
+        Debug.Log("InventoryUI запущен");
     }
-    
-    public void AddKey(Sprite icon, string name, string opensDoor)
+
+    public void CollectKey(KeyData keyData)
     {
-        keys.Add(new KeyItem(icon, name, opensDoor));
-        
-        // Создаём UI элемент ключа
-        GameObject keyUI = Instantiate(keyUIPrefab, keyPanel);
-        keyUI.GetComponent<Image>().sprite = icon;
-        keyUI.GetComponentInChildren<Text>().text = name;
-    }
-    
-    public bool HasKeyForDoor(string doorName)
-    {
-        foreach (var key in keys)
-            if (key.opensDoor == doorName) return true;
-        return false;
-    }
-    
-    public void UseKeyForDoor(string doorName)
-    {
-        foreach (var key in keys)
+        Debug.Log("CollectKey ВЫЗВАН!");
+
+        if (keyLargePanel != null)
         {
-            if (key.opensDoor == doorName)
-            {
-                keys.Remove(key);
-                // Удалить UI элемент
-                break;
-            }
+            keyLargePanel.SetActive(true);
+            Debug.Log("Большая панель ACTIVATED");
+        }
+
+        if (keySmallPanel != null)
+        {
+            keySmallPanel.SetActive(true);
+            Debug.Log("Маленькая иконка ACTIVATED");
         }
     }
-    
-    private class KeyItem
-    {
-        public Sprite icon;
-        public string name;
-        public string opensDoor;
-        
-        public KeyItem(Sprite icon, string name, string opensDoor)
-        {
-            this.icon = icon;
-            this.name = name;
-            this.opensDoor = opensDoor;
-        }
-    }
+
+    public bool HasKey() => true;
 }
